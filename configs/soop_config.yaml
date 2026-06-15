@@ -1,0 +1,156 @@
+# =================================================
+# Sentinel Stroke v2 - SOOP Dataset Configuration
+# =================================================
+
+paths:
+  # Raw SOOP dataset (downloaded from OpenNeuro)
+  raw_data: "/home/ubuntu/data/SOOP_Dataset/raw"
+
+  # Derivatives (lesion masks)
+  derivatives: "/home/ubuntu/data/SOOP_Dataset/derivatives"
+
+  # Preprocessed output
+  preprocessed: "/home/ubuntu/data/SOOP_Dataset/preprocessed"
+
+  # Audit and QC reports
+  reports: "/home/ubuntu/data/SOOP_Dataset/reports"
+
+  # Dataset splits
+  splits: "/home/ubuntu/data/SOOP_Dataset/splits"
+
+  # nnU-Net directories
+  nnunet_raw: "/home/ubuntu/nnUNet/nnUNet_raw"
+  nnunet_preprocessed: "/home/ubuntu/nnUNet/nnUNet_preprocessed"
+  nnunet_results: "/home/ubuntu/nnUNet/nnUNet_results"
+
+  # Logs and checkpoints
+  logs: "/home/ubuntu/sentinel_stroke/logs"
+  checkpoints: "/home/ubuntu/sentinel_stroke/checkpoints"
+
+dataset:
+  id: "002"
+  name: "SOOP"
+  description: "SOOP stroke lesion segmentation from TRACE, ADC, and FLAIR"
+  openneuro_id: "ds004889"
+  version: "1.1.2"
+
+  channels:
+    0: "TRACE"   # equivalent to DWI
+    1: "ADC"
+    2: "FLAIR"
+
+  labels:
+    background: 0
+    lesion: 1
+
+  # Expected subject counts
+  total_subjects: 1715
+  stroke_confirmed: 1449
+  no_stroke: 266
+
+preprocessing:
+  # Registration
+  registration_space: "TRACE"  # work in native TRACE space
+  registration_method: "rigid"
+  registration_metric: "mutual_information"
+
+  # Skull stripping
+  skull_strip_method: "synthstrip"
+
+  # Target spacing (isotropic)
+  target_spacing: [1.0, 1.0, 1.0]
+
+  # Intensity normalization
+  clip_percentile_low: 1
+  clip_percentile_high: 99
+  adc_clip_range: [0, 3000]  # standard units x10^-6 mm^2/s
+
+  # Cropping / padding
+  target_shape: [192, 192, 192]
+  crop_padding: 10
+
+  # Data split ratios
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+
+  # Stratification keys
+  stratify_by:
+    - lesion_volume_bin   # tiny/small/medium/large
+    - has_chronic_lesion  # yes/no
+    - nihss_quartile      # from participants.tsv
+
+  # Lesion volume bins (ml)
+  volume_bins:
+    tiny: [0, 1]
+    small: [1, 5]
+    medium: [5, 50]
+    large: [50, 10000]
+
+  # Negative controls
+  negative_control_ratio: 0.12  # ~12% of each batch
+
+training:
+  # Cascade Stage 1 - Detection
+  stage1:
+    architecture: "segresnet_small"
+    input_resolution: [2.0, 2.0, 2.0]  # downsampled
+    input_shape: [96, 96, 96]
+    channels: 3  # TRACE + ADC + FLAIR
+    loss: "focal"
+    focal_alpha: 0.9
+    target_recall: 0.95
+    detection_threshold: 0.1
+    epochs: 300
+    batch_size: 4
+    lr: 0.001
+
+  # Cascade Stage 2 - Segmentation
+  stage2:
+    configuration: "3d_fullres"
+    input_resolution: [1.0, 1.0, 1.0]
+    roi_margin_expand: 0.5  # expand detected ROI by 50%
+    negative_patch_ratio: 0.3
+
+    # Adaptive patch sizes by lesion volume
+    patch_sizes:
+      tiny: [64, 64, 64]
+      small: [96, 96, 96]
+      medium: [128, 128, 128]
+      large: [192, 192, 192]
+
+    # Loss
+    loss: "compound"  # 0.4*GDL + 0.4*Focal + 0.2*Boundary
+
+    # Models to train
+    models:
+      - nnunet
+      - swin_unetr
+      - segresnet
+
+    folds: [0, 1, 2, 3, 4]
+    epochs: 1000
+
+  # Hard example mining
+  hard_mining:
+    enabled: true
+    recompute_interval: 50  # epochs
+
+  # Ensemble
+  ensemble:
+    methods:
+      - average
+      - majority_vote
+      - learned_fusion
+
+gpu:
+  device_id: 0
+  use_amp: true
+  num_workers: 8
+  pin_memory: true
+
+monitoring:
+  tensorboard: true
+  tensorboard_dir: "logs/tensorboard"
+  log_interval: 1
+  checkpoint_interval: 50

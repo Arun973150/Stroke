@@ -1,0 +1,142 @@
+# =================================================
+# Sentinel Stroke - nnU-Net Training Configuration
+# =================================================
+# Master configuration file for stroke segmentation pipeline
+
+# Paths Configuration (Lambda Labs)
+# NOTE: Update these paths when running on your instance
+paths:
+  # Raw ISLES-2022 data (upload to this location)
+  raw_data: "/home/ubuntu/data/ISLES-2022/ISLES-2022"
+  
+  # Preprocessed output
+  preprocessed: "/home/ubuntu/data/preprocessed"
+  
+  # nnU-Net required directories
+  nnunet_raw: "/home/ubuntu/nnUNet/nnUNet_raw"
+  nnunet_preprocessed: "/home/ubuntu/nnUNet/nnUNet_preprocessed"
+  nnunet_results: "/home/ubuntu/nnUNet/nnUNet_results"
+  
+  # Logs and checkpoints
+  logs: "/home/ubuntu/sentinel_stroke/logs"
+  checkpoints: "/home/ubuntu/sentinel_stroke/checkpoints"
+
+# -----------------------------------------------------------------------------
+# DATASET CONFIGURATION
+# -----------------------------------------------------------------------------
+dataset:
+  id: "001"
+  name: "ISLES2022"
+  description: "Ischemic stroke lesion segmentation from DWI, ADC, and FLAIR"
+  
+  # Channel information
+  channels:
+    0: "DWI"
+    1: "ADC"
+    2: "FLAIR"
+  
+  # Labels
+  labels:
+    background: 0
+    lesion: 1
+
+# -----------------------------------------------------------------------------
+# PREPROCESSING CONFIGURATION
+# -----------------------------------------------------------------------------
+preprocessing:
+  # Target spacing in mm (isotropic recommended)
+  target_spacing: [1.95, 1.95, 1.95]
+  
+  # Data split ratios
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  
+  # Intensity clipping percentiles
+  clip_percentile_low: 1
+  clip_percentile_high: 99
+  
+  # Cropping padding (voxels)
+  crop_padding: 10
+
+# -----------------------------------------------------------------------------
+# TRAINING CONFIGURATION
+# -----------------------------------------------------------------------------
+training:
+  # nnU-Net configuration to use
+  configuration: "3d_fullres"
+  
+  # Trainer class (default nnU-Net trainer)
+  trainer: "nnUNetTrainer"
+  
+  # Plans to use
+  plans: "nnUNetPlans"
+  
+  # Folds to train (0-4 for 5-fold CV)
+  folds: [0, 1, 2, 3, 4]
+  
+  # Number of epochs
+  num_epochs: 1000
+  
+  # Whether to save softmax outputs (needed for ensemble)
+  save_npz: true
+  
+  # Continue training from checkpoint
+  continue_training: false
+  
+  # Only run validation (no training)
+  validation_only: false
+
+# -----------------------------------------------------------------------------
+# GPU CONFIGURATION
+# -----------------------------------------------------------------------------
+gpu:
+  # GPU device ID (0 for single GPU)
+  device_id: 0
+  
+  # Mixed precision training
+  use_amp: true
+  
+  # Number of data loader workers
+  num_workers: 8
+  
+  # Pin memory for faster GPU transfer
+  pin_memory: true
+
+# -----------------------------------------------------------------------------
+# MONITORING CONFIGURATION
+# -----------------------------------------------------------------------------
+monitoring:
+  # TensorBoard logging
+  tensorboard: true
+  tensorboard_dir: "logs/tensorboard"
+  
+  # Training progress log interval (epochs)
+  log_interval: 1
+  
+  # Checkpoint save interval (epochs)  
+  checkpoint_interval: 50
+  
+  # Slack notifications (optional)
+  slack:
+    enabled: false
+    webhook_url: ""
+    notify_on: ["start", "checkpoint", "complete", "error"]
+
+# -----------------------------------------------------------------------------
+# EVALUATION CONFIGURATION
+# -----------------------------------------------------------------------------
+evaluation:
+  # Metrics to compute
+  metrics:
+    - dice
+    - sensitivity
+    - specificity
+    - hausdorff_95
+    - surface_dice
+  
+  # Whether to save predictions
+  save_predictions: true
+  
+  # Prediction output format
+  output_format: "nii.gz"

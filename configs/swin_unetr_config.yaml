@@ -1,0 +1,156 @@
+# =================================================
+# Sentinel Stroke - Swin-UNETR Training Configuration
+# =================================================
+# Configuration for sensitivity-focused Swin-UNETR model
+
+# Paths Configuration (Lambda Labs)
+paths:
+  # Reuse nnU-Net preprocessed data
+  nnunet_preprocessed: "/home/ubuntu/nnUNet/nnUNet_preprocessed/Dataset001_ISLES2022"
+  nnunet_raw: "/home/ubuntu/nnUNet/nnUNet_raw/Dataset001_ISLES2022"
+  
+  # Swin-UNETR specific outputs
+  results: "/home/ubuntu/sentinel_stroke/swin_unetr_results"
+  checkpoints: "/home/ubuntu/sentinel_stroke/swin_unetr_checkpoints"
+  logs: "/home/ubuntu/sentinel_stroke/logs/swin_unetr"
+
+# -----------------------------------------------------------------------------
+# DATASET CONFIGURATION
+# -----------------------------------------------------------------------------
+dataset:
+  name: "ISLES2022"
+  num_channels: 3  # DWI, ADC, FLAIR
+  num_classes: 2   # Background + Lesion
+  
+  # Patch size for training (must be divisible by 32 for Swin-UNETR)
+  # Reduced from 128 to 96 to fit in GPU memory
+  patch_size: [96, 96, 96]
+  
+  # Number of samples per volume during training
+  samples_per_volume: 4
+
+# -----------------------------------------------------------------------------
+# MODEL CONFIGURATION
+# -----------------------------------------------------------------------------
+model:
+  name: "SwinUNETR"
+  
+  # Swin-UNETR architecture parameters
+  img_size: [96, 96, 96]
+  in_channels: 3
+  out_channels: 2
+  feature_size: 48        # Base feature dimension (48=base, 96=large)
+  
+  # Swin Transformer specific
+  depths: [2, 2, 2, 2]     # Number of transformer blocks at each stage
+  num_heads: [3, 6, 12, 24]  # Attention heads at each stage
+  
+  # Use pre-trained weights from MONAI Model Zoo
+  use_pretrained: true
+  pretrained_weights: "self_supervised"  # Options: "self_supervised", null
+  
+  # Dropout
+  dropout_rate: 0.0
+  attn_drop_rate: 0.0
+  dropout_path_rate: 0.0
+  
+  # Use V2 version (improved architecture)
+  use_v2: false
+
+# -----------------------------------------------------------------------------
+# TRAINING CONFIGURATION
+# -----------------------------------------------------------------------------
+training:
+  # Number of epochs (balanced for good convergence)
+  num_epochs: 500
+  
+  # Batch size (reduced to 1 for memory efficiency)
+  batch_size: 1
+  
+  # Number of validation samples
+  val_batch_size: 1
+  
+  # Learning rate
+  learning_rate: 0.0001
+  weight_decay: 0.00001
+  
+  # Learning rate scheduler
+  scheduler: "cosine_annealing"
+  warmup_epochs: 50
+  min_lr: 0.000001
+  
+  # Loss function
+  loss: "DiceCE"
+  dice_weight: 0.5
+  ce_weight: 0.5
+  
+  # Gradient clipping
+  gradient_clip: 1.0
+  
+  # Mixed precision training
+  use_amp: true
+  
+  # Number of folds for cross-validation
+  num_folds: 5
+  
+  # Validation frequency (epochs) - set to 1 to show Dice every epoch
+  val_interval: 1
+  
+  # Early stopping
+  early_stopping:
+    enabled: true
+    patience: 100
+    min_delta: 0.001
+
+# -----------------------------------------------------------------------------
+# AUGMENTATION CONFIGURATION
+# -----------------------------------------------------------------------------
+augmentation:
+  # Spatial transforms
+  rand_rotate_range: [0.26, 0.26, 0.26]  # ~15 degrees in radians
+  rand_rotate_prob: 0.5
+  
+  rand_flip_prob: 0.5
+  
+  rand_scale_range: [0.9, 1.1]
+  rand_scale_prob: 0.3
+  
+  # Intensity transforms
+  rand_shift_intensity: 0.1
+  rand_scale_intensity: 0.1
+  intensity_prob: 0.5
+  
+  rand_gaussian_noise_std: 0.05
+  noise_prob: 0.2
+  
+  rand_gaussian_smooth_prob: 0.1
+
+# -----------------------------------------------------------------------------
+# INFERENCE CONFIGURATION
+# -----------------------------------------------------------------------------
+inference:
+  # Sliding window inference
+  roi_size: [96, 96, 96]
+  sw_batch_size: 4
+  overlap: 0.5
+  mode: "gaussian"  # Blending mode: "constant" or "gaussian"
+
+# -----------------------------------------------------------------------------
+# GPU CONFIGURATION
+# -----------------------------------------------------------------------------
+gpu:
+  device_id: 0
+  num_workers: 4
+  pin_memory: true
+
+# -----------------------------------------------------------------------------
+# MONITORING CONFIGURATION
+# -----------------------------------------------------------------------------
+monitoring:
+  tensorboard: true
+  log_interval: 10
+  save_interval: 50
+  
+  # Save best model based on
+  monitor_metric: "val_dice"
+  monitor_mode: "max"

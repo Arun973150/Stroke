@@ -1,0 +1,101 @@
+# =================================================
+# Sentinel Stroke - SegResNet Training Configuration
+# =================================================
+# Configuration for stability-focused SegResNet model
+# Designed for conservative predictions with high specificity
+
+# Paths Configuration (Lambda Labs)
+paths:
+  nnunet_preprocessed: "/home/ubuntu/nnUNet/nnUNet_preprocessed/Dataset001_ISLES2022"
+  nnunet_raw: "/home/ubuntu/nnUNet/nnUNet_raw/Dataset001_ISLES2022"
+  results: "/home/ubuntu/sentinel_stroke/segresnet_results"
+  checkpoints: "/home/ubuntu/sentinel_stroke/segresnet_checkpoints"
+  logs: "/home/ubuntu/sentinel_stroke/logs/segresnet"
+
+# -----------------------------------------------------------------------------
+# DATASET CONFIGURATION
+# -----------------------------------------------------------------------------
+dataset:
+  name: "ISLES2022"
+  num_channels: 3
+  num_classes: 2
+  
+  # Patch size for training (96^3 fits A100 comfortably)
+  patch_size: [96, 96, 96]
+  
+  # Samples per volume
+  samples_per_volume: 2
+
+# -----------------------------------------------------------------------------
+# MODEL CONFIGURATION
+# -----------------------------------------------------------------------------
+model:
+  name: "SegResNet"
+  spatial_dims: 3
+  in_channels: 3
+  out_channels: 2
+  init_filters: 32         # Restored to 32 for full capacity
+  blocks_down: [1, 2, 2, 4]
+  blocks_up: [1, 1, 1]
+  norm: "GROUP"
+  num_groups: 8
+  dropout_prob: 0.2
+  use_conv_final: true
+  upsample_mode: "nontrainable"
+
+# -----------------------------------------------------------------------------
+# TRAINING CONFIGURATION
+# -----------------------------------------------------------------------------
+training:
+  num_epochs: 1000     # Increased to 1000 per user request
+  batch_size: 1
+  val_batch_size: 1
+  optimizer: "sgd"
+  learning_rate: 0.01
+  momentum: 0.9
+  weight_decay: 0.0001
+  scheduler: "cosine"  # Switched to cosine for better long-term convergence
+  loss: "DiceCE"
+  dice_weight: 0.6
+  ce_weight: 0.4
+  gradient_clip: 1.0
+  use_amp: true
+  num_folds: 5
+  val_interval: 10     # Reverted to 10 for much faster training
+  early_stopping:
+    enabled: true
+    patience: 150      # Increased patience for 1000 epochs
+    min_delta: 0.0005
+
+# -----------------------------------------------------------------------------
+# AUGMENTATION CONFIGURATION
+# -----------------------------------------------------------------------------
+augmentation:
+  rand_flip_prob: 0.5
+  rand_rotate_range: [0.15, 0.15, 0.15]
+  rand_rotate_prob: 0.3
+  rand_scale_range: [0.95, 1.05]
+  rand_scale_prob: 0.2
+  rand_shift_intensity: 0.1
+  rand_scale_intensity: 0.1
+  intensity_prob: 0.5
+  rand_gaussian_noise_std: 0.03
+  noise_prob: 0.15
+  rand_gaussian_smooth_prob: 0.05
+
+# -----------------------------------------------------------------------------
+# INFERENCE CONFIGURATION
+# -----------------------------------------------------------------------------
+inference:
+  roi_size: [96, 96, 96]
+  sw_batch_size: 1
+  overlap: 0.5
+  mode: "gaussian"
+
+# -----------------------------------------------------------------------------
+# GPU CONFIGURATION
+# -----------------------------------------------------------------------------
+gpu:
+  device_id: 0
+  num_workers: 2      # Reduced workers to save RAM
+  pin_memory: true

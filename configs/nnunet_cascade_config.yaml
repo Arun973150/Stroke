@@ -1,0 +1,85 @@
+# =================================================
+# Sentinel Stroke - Cascaded nnU-Net Configuration
+# =================================================
+# Optimized for tiny lesion segmentation using two-stage approach:
+# Stage 1: Low-res model finds candidate regions
+# Stage 2: Full-res model segments at native resolution
+
+# Paths Configuration (Lambda Labs)
+paths:
+  raw_data: "/home/ubuntu/data/ISLES-2022/ISLES-2022"
+  preprocessed: "/home/ubuntu/data/preprocessed"
+  nnunet_raw: "/home/ubuntu/nnUNet/nnUNet_raw"
+  nnunet_preprocessed: "/home/ubuntu/nnUNet/nnUNet_preprocessed"
+  nnunet_results: "/home/ubuntu/nnUNet/nnUNet_results"
+  logs: "/home/ubuntu/sentinel_stroke/logs"
+  checkpoints: "/home/ubuntu/sentinel_stroke/checkpoints"
+
+# -----------------------------------------------------------------------------
+# DATASET CONFIGURATION
+# -----------------------------------------------------------------------------
+dataset:
+  id: "001"
+  name: "ISLES2022"
+  description: "Ischemic stroke lesion segmentation - Cascade mode for tiny lesions"
+  
+  channels:
+    0: "DWI"
+    1: "ADC"
+    2: "FLAIR"
+  
+  labels:
+    background: 0
+    lesion: 1
+
+# -----------------------------------------------------------------------------
+# CASCADE TRAINING CONFIGURATION
+# -----------------------------------------------------------------------------
+cascade:
+  # Stage 1: Low-resolution model
+  stage1:
+    configuration: "3d_lowres"
+    trainer: "nnUNetTrainer"
+    plans: "nnUNetPlans"
+    # Low-res spacing is automatically determined by nnU-Net
+    # Typically ~5mm isotropic for this dataset size
+  
+  # Stage 2: Full-resolution cascade model
+  stage2:
+    configuration: "3d_cascade_fullres"
+    trainer: "nnUNetTrainer"
+    plans: "nnUNetPlans"
+    # Uses low-res predictions as additional input channel
+    # Processes at native resolution in ROIs
+
+training:
+  # Folds to train
+  folds: [0, 1, 2, 3, 4]
+  
+  # Epochs per stage (nnU-Net default is 1000)
+  num_epochs: 1000
+  
+  # Save softmax for ensemble
+  save_npz: true
+
+# -----------------------------------------------------------------------------
+# GPU CONFIGURATION
+# -----------------------------------------------------------------------------
+gpu:
+  device_id: 0
+  use_amp: true
+  num_workers: 8
+  pin_memory: true
+
+# -----------------------------------------------------------------------------
+# EXPECTED IMPROVEMENTS
+# -----------------------------------------------------------------------------
+# The cascade architecture should improve tiny lesion detection by:
+# 1. Low-res stage provides global context and lesion localization
+# 2. Full-res stage refines boundaries at native resolution
+# 3. Combined approach handles multi-scale lesions better
+#
+# Expected performance:
+# - Tiny lesions: 0.33 -> 0.40-0.45 Dice (+20-35%)
+# - Small lesions: 0.76 -> 0.78-0.80 Dice
+# - Medium/Large: Maintain or slight improvement
